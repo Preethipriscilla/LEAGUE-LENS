@@ -102,7 +102,7 @@ if uploaded_file is not None:
       st.pyplot(fig4)
 
     # Display unique teams
-    if st.sidebar.checkbox('List of Unique Teams'):
+    if st.sidebar.checkbox('List of Teams'):
        unique_teams = mm['Team'].unique()
        st.write(unique_teams)
 
