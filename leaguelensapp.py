@@ -33,9 +33,7 @@ if uploaded_file is not None:
     st.subheader("Dataset Overview")
     st.write(mm)
 
-    # Display basic statistics
-    if st.checkbox("Show Dataset Info"):
-        st.write(mm.info())
+
 
     if st.checkbox("Show Dataset Description"):
         st.write(mm.describe())
