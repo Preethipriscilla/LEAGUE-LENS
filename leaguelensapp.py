@@ -290,4 +290,3 @@ if uploaded_file is not None:
     sns.barplot(x='Model', y='Accuracy', data=model_comparison, palette='viridis')
     plt.title('Model Accuracy Comparison')
     st.pyplot()
-
