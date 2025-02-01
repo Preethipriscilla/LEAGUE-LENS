@@ -14,6 +14,10 @@ from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder
 import math
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+from sklearn.metrics import accuracy_score, roc_auc_score
+from sklearn.preprocessing import StandardScaler
 
 # Title
 st.title("LEAGUE LENS")
@@ -72,23 +76,29 @@ if uploaded_file is not None:
     st.write(f"**Total Penalties Scored:** {ps}")
     st.write(f"**Total Penalties Attempted:** {pa}")
 
+    if st.sidebar.checkbox('EPL Player Stats Visualization'):
+       st.subheader("Scatter plot of Goals vs Assists")
+       fig2, vv= plt.subplots()
+       vv= plt.scatter(mm['Gls.1'],mm['Ast.1'])
+       st.pyplot(fig2)
+
     # Age distribution plot
     if st.sidebar.checkbox('Age Distribution of Players'):
       st.subheader("Barplot of age distribution of the players")
       age = mm.groupby('Age').size().sort_values(ascending=True)
-      fig2, ax2 = plt.subplots(figsize=(13, 6))
+      fig3, ax2 = plt.subplots(figsize=(13, 6))
       age.head(630).plot(kind='bar', ax=ax2, color=sns.color_palette('magma'))
       ax2.set_title('Age of Players')
-      st.pyplot(fig2)
+      st.pyplot(fig3)
 
     # Under-20 players and their teams
     if st.sidebar.checkbox('Teams with Under-20 Players'):
         st.subheader("Barplot of players under 20")
         under20 = mm[mm['Age'] < 20]
-        fig3, ax3 = plt.subplots(figsize=(12, 6))
+        fig4, ax3 = plt.subplots(figsize=(12, 6))
         under20['Team'].value_counts().plot(kind='bar', ax=ax3, color=sns.color_palette('cubehelix'), edgecolor='black')
         ax3.set_title('Teams with Players Under 20')
-        st.pyplot(fig3)
+        st.pyplot(fig4)
     # Goals and assists pie chart
     if st.sidebar.checkbox('Goals and Assists Distribution'):
       st.subheader("Pie chart of goals & assists goals distribution")
@@ -97,12 +107,18 @@ if uploaded_file is not None:
       data = [goals - assists, assists]
       labels = ['Goals without assists', 'Goals with assists']
       colors = sns.color_palette('Set2')
-      fig4, ax4 = plt.subplots()
+      fig5, ax4 = plt.subplots()
       ax4.pie(data, labels=labels, colors=colors, autopct='%.0f%%')
-      st.pyplot(fig4)
+      st.pyplot(fig5)
+
+    if st.sidebar.checkbox('Pairplot varition '):
+       st.subheader("Pairplot of EPL")
+       fig6 = sns.pairplot(mm)
+       st.pyplot(fig6)
+
 
     # Display unique teams
-    if st.sidebar.checkbox('List of Teams'):
+    if st.sidebar.checkbox('List of Unique Teams'):
        unique_teams = mm['Team'].unique()
        st.write(unique_teams)
 
@@ -132,6 +148,7 @@ if uploaded_file is not None:
     lr_accuracy = None
     dt_accuracy = None
     nb_accuracy = None
+    pr_accuracy = None
 
     if st.sidebar.checkbox("Run Logistic Regression"):
         st.subheader("Logistic Regression")
@@ -186,11 +203,87 @@ if uploaded_file is not None:
         nb_accuracy = accuracy_score(y_test, y_pred_nb)
         st.write(f"Naive Bayes Accuracy: {nb_accuracy}")
 
+    if st.sidebar.checkbox("Run PCA"):
+        st.subheader("PCA")
+    
+    mm['xG'] = mm['xG'].fillna(mm['xG'].mean())
+    mm['Gls'] = mm['Gls'].fillna(mm['Gls'].mean())
+
+    x = mm.drop(columns='Gls')
+    y = mm['Gls']
+
+    # Train-test split
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=100)
+
+    # Identify numerical and categorical columns
+    numerical_cols = x_train.select_dtypes(include=np.number).columns
+    categorical_cols = x_train.select_dtypes(include='object').columns
+
+    # Preprocessing pipelines
+    numeric_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='mean')),
+        ('scaler', StandardScaler())
+    ])
+
+    categorical_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='most_frequent')),
+        ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
+    ])
+
+    # Combine transformations
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('num', numeric_transformer, numerical_cols),
+            ('cat', categorical_transformer, categorical_cols)
+        ]
+    )
+
+    # Transform data
+    x_train_preprocessed = preprocessor.fit_transform(x_train)
+    x_test_preprocessed = preprocessor.transform(x_test)
+
+    # Apply PCA
+    pca = PCA(n_components=0.95)  # Retain 95% of the variance
+    x_train_pca = pca.fit_transform(x_train_preprocessed)
+    x_test_pca = pca.transform(x_test_preprocessed)
+
+    # Fit KMeans on PCA-transformed data
+    kmeans = KMeans(n_clusters=3, random_state=42)
+    kmeans.fit(x_train_pca)
+
+    # Predict clusters
+    train_clusters = kmeans.predict(x_train_pca)
+    test_clusters = kmeans.predict(x_test_pca)
+
+    # Train a Logistic Regression model
+    model = LogisticRegression()
+    model.fit(x_train_pca, y_train)
+
+    # Make predictions
+    y_pred_lr = model.predict(x_test_pca)
+    y_pred_prob_lr = model.predict_proba(x_test_pca)[:, 1]
+
+    # Convert probability predictions to class labels
+    if y_test.dtype in ['float64', 'float32']:  
+        y_test = (y_test > 0.5).astype(int)  # Convert to binary classes (if binary classification)
+
+    # Compute accuracy
+    pr_accuracy = accuracy_score(y_test, y_pred_lr)
+
+    # Compute AUC only for classification problems
+    if len(set(y_test)) > 2:  # Multi-class classification
+        lr_auc = roc_auc_score(y_test, model.predict_proba(x_test_pca), multi_class='ovr')
+    else:  # Binary classification
+        lr_auc = roc_auc_score(y_test, y_pred_prob_lr)
+
+
+    st.write(f"Model Accuracy: {pr_accuracy:.4f}")
+   
     # Comparison
     st.subheader("Model Comparison")
     model_comparison = pd.DataFrame({
-        'Model': ['Logistic Regression', 'Decision Tree', 'Naive Bayes'],
-        'Accuracy': [lr_accuracy, dt_accuracy, nb_accuracy]
+        'Model': ['Logistic Regression', 'Decision Tree', 'Naive Bayes','PCA'],
+        'Accuracy': [lr_accuracy, dt_accuracy, nb_accuracy,pr_accuracy]
     })
     model_comparison = model_comparison.dropna()
     st.write(model_comparison)
