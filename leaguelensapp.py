@@ -20,7 +20,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.preprocessing import StandardScaler
 
 # Title
-st.title("LEAGUE LENS")
+st.title("Premier League Analysis")
 st.image("https://cdnuploads.aa.com.tr/uploads/Contents/2023/01/13/thumbs_b_c_7982afecfc0cefec23851b81850809c9.jpg?v=165134",width=800)
 
 # Sidebar
